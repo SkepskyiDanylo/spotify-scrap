@@ -9,3 +9,5 @@ main.exe
 build/
 dist/
 main.spec
+*.ico
+SPOTIFY_LINKS.txt
