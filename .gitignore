@@ -5,3 +5,7 @@
 .DS_Store
 venv/
 *.pyc
+main.exe
+build/
+dist/
+main.spec

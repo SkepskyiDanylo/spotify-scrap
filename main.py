@@ -25,11 +25,11 @@ if __name__ == '__main__':
     # else:
     #     print("No new urls found!")
 
-
+    keyword = input("Enter search term: ")
     result = []
     start = time.time()
     token = get_token(client_id, client_secret)
-    search_result = search_for_playlist(token, "Phonk")
+    search_result = search_for_playlist(token, keyword.strip())
     playlists = search_result["items"]
     next_link = search_result["next"]
     count = 1
