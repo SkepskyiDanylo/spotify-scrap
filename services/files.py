@@ -1,7 +1,9 @@
 import json
 import re
 import os
-
+import csv
+import time
+import openpyxl
 
 # checking for email in description
 # if emails are found returning dict{name,email,url}
@@ -62,27 +64,108 @@ def from_txt(file_name: str) -> list[str]:
         return []
     used_ids = get_used_data()
     playlist_ids = []
-    for url in urls_to_upload:
-        if url.startswith("https://open.spotify.com/playlist/"):
-            playlist_id = url[34:56]
+    for link in urls_to_upload:
+        if isinstance(link, str) and link.startswith("https://open.spotify.com/playlist/"):
+            playlist_id = link[34:56]
             if playlist_id not in used_ids:
                 playlist_ids.append(playlist_id)
                 used_ids.append(playlist_id)
             else:
-                print(f"{url} ignored!")
+                print(f"{link} ignored!")
         else:
-            print(f"{url} is not spotify url")
+            print(f"{link} is not spotify url")
     upload_used_data(used_ids)
     return playlist_ids
 
 
-def load_links(file_name: str) -> list[str]:
+def from_csv(file_name: str) -> list[str] | None:
+    column_name = input("Enter column name with links: ")
+    #loading used data for json file
+    used_ids = get_used_data()
+
+    try:
+        with open(file_name, newline='', encoding='utf-8') as csvfile:
+            data = csv.DictReader(csvfile)
+            playlist_ids = []
+
+            for row in data:
+                if column_name in row:
+                    link = row[column_name.strip()]
+                    if isinstance(link, str) and link.startswith("https://open.spotify.com/playlist/"):
+                        p_id = link[34:56]
+                        if p_id in used_ids:
+                            print(f"{link} ignored!")
+                        else:
+                            playlist_ids.append(p_id)
+                            used_ids.append(p_id)
+                    else:
+                        print(f"{link} is not spotify url")
+
+            #saving used ids to json file
+            upload_used_data(used_ids)
+
+            if playlist_ids:
+                print(f"Found {len(playlist_ids)} playlists")
+                return playlist_ids
+
+            print(f"Found no playlists for {file_name} in column {column_name}\n"
+                  f"Please try again")
+            time.sleep(5)
+            return
+
+    except FileNotFoundError:
+        print("File not found")
+        return
+
+
+def from_xslx(file_name: str) -> list[str] | None:
+    sheet_name = input("Enter sheet name: ")
+    column_number = int(input("Enter column number: "))
+    used_ids = get_used_data()
+    playlist_ids = []
+    try:
+        workbook = openpyxl.load_workbook(file_name)
+        sheet = workbook[sheet_name]
+    except FileNotFoundError:
+        print("File not found")
+        return
+
+    for row in sheet.iter_rows(min_col=column_number, max_col=column_number, values_only=True):
+        link = row[0]
+        if isinstance(link, str) and link.startswith("https://open.spotify.com/playlist/"):
+            playlist_id = link[34:56]
+            if playlist_id in used_ids:
+                print(f"{link} ignored!")
+            else:
+                playlist_ids.append(playlist_id)
+                used_ids.append(playlist_id)
+        else:
+            print(f"{link} is not spotify url")
+
+    upload_used_data(used_ids)
+
+    if playlist_ids:
+        print(f"Found {len(playlist_ids)} playlists")
+        return playlist_ids
+
+    print(f"Found no playlists for {file_name} in column {column_number}")
+    return
+
+
+def load_links(file_name: str) -> list[str] | None:
     if file_name.endswith(".txt"):
         result = from_txt(file_name)
-        return result
+    elif file_name.endswith(".csv"):
+        result = from_csv(file_name)
+    elif file_name.endswith(".xlsx"):
+        result = from_xslx(file_name)
     else:
         print("File type not supported")
-        return []
+        result = None
+    # return result
+
+
+
 
 # def save_log(action: str, log_type: str, file_name: str = "logs.json") -> None:
 #     print(action)

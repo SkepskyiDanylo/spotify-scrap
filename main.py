@@ -11,6 +11,7 @@ from services.database import load_to_db
 def clear() -> None:
     os.system('cls' if os.name == 'nt' else 'clear')
 
+
 def load_links_mode(c_id: str, c_secret: str) -> None:
     token_manager = TokenManager(c_id, c_secret)
 
@@ -18,7 +19,7 @@ def load_links_mode(c_id: str, c_secret: str) -> None:
         print("Welcome in load links mode\n"
               "Enter file name\n"
               "File should be in same directory\n"
-              "File should be in txt format(for now)\n"
+              "File should be in [txt, csv, xlsx] format\n"
               "If you leave it empty will be used default value('links.txt')'\n"
               "If you want to go back to main menu, type 'q'")
         file_name = input("Enter file name: ")
@@ -109,6 +110,7 @@ def search_mode(c_id: str, c_secret: str) -> None:
             print("Nothing to upload")
         time.sleep(2)
         clear()
+
 
 
 if __name__ == '__main__':
