@@ -11,7 +11,7 @@ class TokenManager:
         self.client_id = client_id
         self._client_secret = client_secret
         self._token = None
-    
+
     def refresh_token(self) -> None:
         auth_string = self.client_id + ":" + self._client_secret
         auth_bytes = auth_string.encode('utf-8')
@@ -40,7 +40,9 @@ def get_auth_header(token: str) -> dict[str, str]:
     return {"Authorization": "Bearer " + token, }
 
 
-def search_for_playlist(token_manager: TokenManager, search_request: str, next_link: str = None) -> dict[str, str | list] | None:
+def search_for_playlist(token_manager: TokenManager,
+                        search_request: str,
+                        next_link: str = None) -> dict[str, str | list] | None:
     request_link = ""
 
     if next_link is None:
@@ -58,7 +60,9 @@ def search_for_playlist(token_manager: TokenManager, search_request: str, next_l
         return json_data["playlists"]
     return None
 
-def get_playlist_data(token_manager: TokenManager, playlist_id: str) -> dict[str, str | list] | None:
+
+def get_playlist_data(token_manager: TokenManager,
+                      playlist_id: str) -> dict[str, str | list] | None:
     url = "https://api.spotify.com/v1/playlists/" + str(playlist_id)
     headers = get_auth_header(token_manager.token)
     response = get(url, headers=headers)
@@ -67,3 +71,43 @@ def get_playlist_data(token_manager: TokenManager, playlist_id: str) -> dict[str
         return json_data
     else:
         return None
+
+
+def get_track_data(token_manager: TokenManager,
+                   playlist_link: str, top_count: int = 5) -> list[tuple]:
+    result = []
+    start_link = "https://api.spotify.com/v1/playlists/" + playlist_link[34:56]
+    headers = get_auth_header(token_manager.token)
+    response = get(start_link, headers=headers)
+    json_data = json.loads(response.content)
+    link = json_data["tracks"]["href"]
+    count_of_tracks = 0
+
+    while True:
+        if not link:
+            break
+        headers = get_auth_header(token_manager.token)
+        response = get(link, headers=headers)
+        json_data = json.loads(response.content)
+        tracks = json_data["items"]
+        link = json_data["next"]
+        for track in tracks:
+            try:
+                count_of_tracks += 1
+                name = track["track"]["name"]
+                artist = track["track"]["artists"][0]["name"]
+                popularity = track["track"]["popularity"]
+                url = track["track"]["external_urls"]["spotify"]
+                print(f"{name=}, {artist=}, {popularity=}, {url=}")
+                result.append((
+                    name,
+                    artist,
+                    popularity,
+                    url
+                ))
+            except TypeError:
+                print("Error:", track)
+
+    result.sort(key=lambda x: x[2], reverse=True)
+
+    return result[:top_count]
