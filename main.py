@@ -1,92 +1,75 @@
-import json
-from json import JSONDecodeError
-from time import sleep
+import init_django_orm # noqa: E402
+import os
+import asyncio
 
 from dotenv import load_dotenv
+from time import sleep, time
 
-import os
-import time
-
-from services.files import validate_data, load_links, unique_ids
-from services.database import load_to_db, get_from_db
-from services.api import (TokenManager,
-                          get_playlist_data,
-                          search_for_playlist,
-                          get_track_data)
+from db.models import Playlist, Track
+from lib.api import TokenManager, get_playlist_data, get_track_data, search_for_playlist, validate_playlist
+from lib.files import FileManager, get_used_data, upload_used_data, check_for_duplicates
 
 
 def clear() -> None:
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
-def top_tracks_mode(c_id: str, c_secret: str) -> None:
-    print("Getting top tracks, it can take up to 2 minutes")
-    sleep(2)
-    try:
-        with open("playlist_id.json", "r") as f:
-            data = json.load(f)
-            if data:
-                last_used_id = data[0]
-    except (FileNotFoundError, JSONDecodeError):
-        last_used_id = 0
+def load_top_tracks(c_id: str, c_secret: str) -> None:
     token_manager = TokenManager(c_id, c_secret)
-    links = get_from_db()
-    links = [link for link in links if link[0] > last_used_id]
-    if links:
-        last_used_id = links[-1][0]
-        with open("playlist_id.json", "w") as f:
-            json.dump([last_used_id], f)
-        result = []
-        for link in links:
-            result.append((link[0], get_track_data(token_manager, link[1])))
-        load_to_db(result, type_of_object="track")
-        clear()
+    data = get_used_data()
+    last_id = data["last_playlist_id"]
+    playlists = Playlist.objects.filter(id__gt=last_id).values("id","link")
+    for playlist in playlists:
+        tracks = get_track_data(token_manager=token_manager, playlist_link=playlist["link"])
+        for place,track in enumerate(tracks):
+            name = track[0]
+            author = track[1]
+            popularity = track[2]
+            link = track[3]
+            Track.objects.create(
+                name=name,
+                author=author,
+                popularity=popularity,
+                link=link,
+                place=place + 1,
+                playlist_id=playlist["id"],
+            )
+    data["last_playlist_id"] = list(playlists)[-1]["id"]
+    upload_used_data(data)
 
 
 def load_links_mode(c_id: str, c_secret: str) -> None:
     token_manager = TokenManager(c_id, c_secret)
-
+    file_manager = FileManager()
     while True:
+        start = time()
         print("Welcome in load links mode\n"
-              "Enter file name\n"
-              "File should be in same directory\n"
-              "File should be in [txt, csv, xlsx] format\n"
-              "If you leave it empty will be used default value('links.txt')'\n"
-              "If you want to go back to main menu, type 'q'")
-        file_name = input("Enter file name: ")
-        clear()
-
-        if file_name == 'q':
+              "Loading files from 'files' folder, please move files you want to check there\n"
+              "Possible formats: .txt, .csv, .xlsx\n"
+              "To exit type 'q'")
+        com = input("Press enter or type 'q': ")
+        if com == "q":
             break
-
-        if file_name.strip() == '':
-            file_name = 'links.txt'
-
-        result = []
-        links_to_check = load_links(file_name.strip())
-        if links_to_check:
-            for link in links_to_check:
-                playlist = get_playlist_data(token_manager, link)
-                if playlist:
-                    validated = validate_data(playlist)
-                    if validated:
-                        result.append(validated)
         else:
-            time.sleep(2)
-            clear()
-            continue
-        time.sleep(1)
-        print(f"Found {len(result)} links out of {len(links_to_check)}")
-        input("Press enter to continue")
-        if result:
-            print("Uploading to db")
-            load_to_db(result, type_of_object="playlist")
-            print("Getting top tracks, it can take up to 2 minutes")
-            top_tracks_mode(c_id, c_secret)
-            print("Upload completed")
-        else:
-            print("Nothing to upload")
-        time.sleep(2)
+            ids = file_manager.load_folder()
+            if ids:
+                song_type = input("Enter the playlist type:")
+                for p_id in ids:
+                    playlist = get_playlist_data(token_manager=token_manager, playlist_id=p_id)
+                    if playlist:
+                        name = playlist.get("name")
+                        email = playlist.get("email")
+                        link = playlist.get("link")
+                        print(f"Uploading {name}")
+                        Playlist.objects.create(name=name, email=email, link=link, song_type=song_type)
+                load_top_tracks(c_id=c_id, c_secret=c_secret)
+            else:
+                print("No playlists found")
+                clear()
+                continue
+        end = time()
+        print(f"It took {end - start} seconds")
+        sleep(2)
         clear()
 
 
@@ -104,87 +87,76 @@ def search_mode(c_id: str, c_secret: str) -> None:
         keywords = keywords.strip()
         result = []
         next_link = None
-        count = 1
-        try:
-            for i in range(20):
+        count = 0
+        for _ in range(20):
+            try:
                 search_result = search_for_playlist(token_manager, keywords, next_link)
                 if search_result:
-                    playlists = search_result['items']
+                    playlist = search_result["items"]
                     next_link = search_result["next"]
-                    for playlist in playlists:
-                        print(f"{count} ", end="")
+                    for playlist in playlist:
                         count += 1
-                        validated_playlist = validate_data(playlist)
-                        if validated_playlist:
-                            result.append(validated_playlist)
-                            print(validated_playlist)
-                else:
-                    print("No response or api is down, try again")
-                    continue
-        except Exception as e:
-            print(e)
-            input("Press enter to continue")
+                        print(f"{count}", end="")
+                        validated = validate_playlist(playlist)
+                        if validated:
+                            result.append(validated)
+            except Exception as e:
+                print("Some error there", e)
+                return
         clear()
-        total = len(result)
-        print(f"Found {total} playlists with email out of {count}")
-        print("Checking for duplicates:")
-        result = [playlist for playlist in result if unique_ids(playlist["link"])]
-        print(f"{len(result)} left to upload, {total - len(result)} duplicates removed")
-        input("Press enter to continue")
+        print(f"Total playlist count: {len(result)}, out of {count}")
+        result = [result for result in result if check_for_duplicates(result["link"])]
+        song_type = input("Enter the playlist type: ")
+        for playlist in result:
+            name = playlist.get("name")
+            email = playlist.get("email")
+            link = playlist.get("link")
+            print(f"Uploading {name}")
+            Playlist.objects.create(name=name, email=email, link=link, song_type=song_type)
+        load_top_tracks(c_id=c_id, c_secret=c_secret)
         clear()
-        if result:
-            print("Uploading to db")
-            time.sleep(1)
-            load_to_db(result, type_of_object="playlist")
-            top_tracks_mode(c_id, c_secret)
-            print("Upload completed")
-        else:
-            print("Nothing to upload")
-        time.sleep(2)
-        clear()
+
+
+
+
 
 
 if __name__ == '__main__':
     try:
-        load_dotenv()
-
+        load_dotenv(os.path.join("assets", ".env"))
         client_id = os.getenv("CLIENT_ID")
         client_secret = os.getenv("CLIENT_SECRET")
 
         while True:
             print("""
-        This is a Spotify API service.
-        It works in 2 modes:
-        1. Loading playlist links from file, and check for email in their description
-        2. Looking for playlists by search q (1000 playlists per q)
-        3. Manually check every playlist for top 5 tracks
-        Enter 1 or 2, to start working in selected mode
-        If You want to exit type 'q' or 'exit' or 'stop'
-        """
+                    This is a Spotify API service.
+                    It works in 2 modes:
+                    1. Loading playlist links from file, and check for email in their description
+                    2. Looking for playlists by search q (<1000 playlists per q)
+                    Enter 1 or 2, to start working in selected mode
+                    If You want to exit type 'q'
+                    """
                   )
+
             command = input("Enter command: ")
-            if command in ['q', 'exit', 'stop']:
+
+            if command == "q":
                 break
-            elif command == '1':
+            elif command == "1":
                 clear()
                 load_links_mode(client_id, client_secret)
-            elif command == '2':
+            elif command == "2":
                 clear()
-                start = time.time()
                 search_mode(client_id, client_secret)
-                end = time.time()
-                print(end - start)
-            elif command == '3':
-                clear()
-                print("Manually getting top tracks")
-                top_tracks_mode(client_id, client_secret)
             else:
                 print("Invalid command")
-                time.sleep(2)
+                sleep(1)
                 clear()
+
     except KeyboardInterrupt:
         clear()
         print("\nShutting down")
-    except Exception as e:
-        print(f"Unexpected error: {e}")
-        input("Press enter shut down")
+        sleep(1)
+    # except Exception as e:
+    #     print("Unexpected error:", e)
+

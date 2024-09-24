@@ -1,8 +1,12 @@
-import json
 import base64
-
+import json
+import logging
+import re
+import httpx
 from time import time
-from requests import post, get
+
+
+logging.basicConfig(level=logging.WARNING)
 
 
 class TokenManager:
@@ -22,8 +26,8 @@ class TokenManager:
             "Content-Type": "application/x-www-form-urlencoded"
         }
         data = {"grant_type": "client_credentials"}
-        response = post(url, headers=headers, data=data)
-        json_data = json.loads(response.content)
+        response = httpx.post(url, headers=headers, data=data)
+        json_data = response.json()
         token = json_data["access_token"]
 
         self.end_time = time() + 3600 - 60
@@ -34,6 +38,20 @@ class TokenManager:
         if time() > self.end_time:
             self.refresh_token()
         return self._token
+
+
+def validate_playlist(data: dict) -> dict | None:
+    email_pattern = r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+'
+    emails = re.findall(email_pattern, data["description"])
+    if emails:
+        print(f"Found {len(emails)} emails for {data['name']}")
+        return {
+            "name": data["name"],
+            "email": ", ".join(emails),
+            "link": data["external_urls"]["spotify"],
+        }
+    print(f"Found no emails for {data['name']}")
+    return None
 
 
 def get_auth_header(token: str) -> dict[str, str]:
@@ -54,43 +72,49 @@ def search_for_playlist(token_manager: TokenManager,
         request_link = next_link
 
     headers = get_auth_header(token_manager.token)
-    response = get(request_link, headers=headers)
+    response = httpx.get(request_link, headers=headers)
     if response.status_code == 200:
         json_data = json.loads(response.content)
         return json_data["playlists"]
     return None
 
 
-def get_playlist_data(token_manager: TokenManager,
-                      playlist_id: str) -> dict[str, str | list] | None:
+def get_playlist_data(token_manager: TokenManager, playlist_id: str) -> dict[str, str | list] | None:
     url = "https://api.spotify.com/v1/playlists/" + str(playlist_id)
     headers = get_auth_header(token_manager.token)
-    response = get(url, headers=headers)
-    if response.status_code == 200:
-        json_data = json.loads(response.content)
-        return json_data
-    else:
-        return None
+    try:
+        response = httpx.get(url, headers=headers)
+        response.raise_for_status()
+        if response.status_code == 200:
+            json_data = response.json()
+            result = validate_playlist(json_data)
+            return result
+        else:
+            return
+    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+        logging.warning(f"Failed to get playlist data for {playlist_id}")
 
 
 def get_track_data(token_manager: TokenManager,
-                   playlist_link: str, top_count: int = 5) -> list[tuple]:
+                         playlist_link: str, top_count: int = 5) -> list[tuple]:
     result = []
     start_link = "https://api.spotify.com/v1/playlists/" + playlist_link[34:56]
+
     headers = get_auth_header(token_manager.token)
-    response = get(start_link, headers=headers)
-    json_data = json.loads(response.content)
+    response = httpx.get(start_link, headers=headers)  # Асинхронный GET-запрос
+    json_data = response.json()
     link = json_data["tracks"]["href"]
     count_of_tracks = 0
-
     while True:
         if not link:
             break
+
         headers = get_auth_header(token_manager.token)
-        response = get(link, headers=headers)
-        json_data = json.loads(response.content)
+        response = httpx.get(link, headers=headers)  # Асинхронный GET-запрос
+        json_data = response.json()
         tracks = json_data["items"]
         link = json_data["next"]
+
         for track in tracks:
             try:
                 count_of_tracks += 1
@@ -99,15 +123,9 @@ def get_track_data(token_manager: TokenManager,
                 popularity = track["track"]["popularity"]
                 url = track["track"]["external_urls"]["spotify"]
                 print(f"{name=}, {artist=}, {popularity=}, {url=}")
-                result.append((
-                    name,
-                    artist,
-                    popularity,
-                    url
-                ))
+                result.append((name, artist, popularity, url))
             except TypeError:
                 print("Error:", track)
 
     result.sort(key=lambda x: x[2], reverse=True)
-
     return result[:top_count]
