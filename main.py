@@ -1,13 +1,19 @@
-import init_django_orm # noqa: E402
+import init_django_orm  # noqa: E402
 import os
-import asyncio
 
 from dotenv import load_dotenv
 from time import sleep, time
 
 from db.models import Playlist, Track
-from lib.api import TokenManager, get_playlist_data, get_track_data, search_for_playlist, validate_playlist
-from lib.files import FileManager, get_used_data, upload_used_data, check_for_duplicates
+from lib.api import (TokenManager,
+                     get_playlist_data,
+                     get_track_data,
+                     search_for_playlist,
+                     validate_playlist)
+from lib.files import (FileManager,
+                       get_used_data,
+                       upload_used_data,
+                       check_for_duplicates)
 
 
 def clear() -> None:
@@ -18,10 +24,11 @@ def load_top_tracks(c_id: str, c_secret: str) -> None:
     token_manager = TokenManager(c_id, c_secret)
     data = get_used_data()
     last_id = data["last_playlist_id"]
-    playlists = Playlist.objects.filter(id__gt=last_id).values("id","link")
+    playlists = Playlist.objects.filter(id__gt=last_id).values("id", "link")
     for playlist in playlists:
-        tracks = get_track_data(token_manager=token_manager, playlist_link=playlist["link"])
-        for place,track in enumerate(tracks):
+        tracks = get_track_data(token_manager=token_manager,
+                                playlist_link=playlist["link"])
+        for place, track in enumerate(tracks):
             name = track[0]
             author = track[1]
             popularity = track[2]
@@ -44,7 +51,8 @@ def load_links_mode(c_id: str, c_secret: str) -> None:
     while True:
         start = time()
         print("Welcome in load links mode\n"
-              "Loading files from 'files' folder, please move files you want to check there\n"
+              "Loading files from 'files' folder, "
+              "please move files you want to check there\n"
               "Possible formats: .txt, .csv, .xlsx\n"
               "To exit type 'q'")
         com = input("Press enter or type 'q': ")
@@ -55,13 +63,17 @@ def load_links_mode(c_id: str, c_secret: str) -> None:
             if ids:
                 song_type = input("Enter the playlist type:")
                 for p_id in ids:
-                    playlist = get_playlist_data(token_manager=token_manager, playlist_id=p_id)
+                    playlist = get_playlist_data(token_manager=token_manager,
+                                                 playlist_id=p_id)
                     if playlist:
                         name = playlist.get("name")
                         email = playlist.get("email")
                         link = playlist.get("link")
                         print(f"Uploading {name}")
-                        Playlist.objects.create(name=name, email=email, link=link, song_type=song_type)
+                        Playlist.objects.create(name=name,
+                                                email=email,
+                                                link=link,
+                                                song_type=song_type)
                 load_top_tracks(c_id=c_id, c_secret=c_secret)
             else:
                 print("No playlists found")
@@ -106,19 +118,21 @@ def search_mode(c_id: str, c_secret: str) -> None:
         clear()
         print(f"Total playlist count: {len(result)}, out of {count}")
         result = [result for result in result if check_for_duplicates(result["link"])]
-        song_type = input("Enter the playlist type: ")
-        for playlist in result:
-            name = playlist.get("name")
-            email = playlist.get("email")
-            link = playlist.get("link")
-            print(f"Uploading {name}")
-            Playlist.objects.create(name=name, email=email, link=link, song_type=song_type)
-        load_top_tracks(c_id=c_id, c_secret=c_secret)
+        if result:
+            song_type = input("Enter the playlist type: ")
+            for playlist in result:
+                name = playlist.get("name")
+                email = playlist.get("email")
+                link = playlist.get("link")
+                print(f"Uploading {name}")
+                Playlist.objects.create(name=name,
+                                        email=email,
+                                        link=link,
+                                        song_type=song_type)
+            load_top_tracks(c_id=c_id, c_secret=c_secret)
+        else:
+            print("No playlists")
         clear()
-
-
-
-
 
 
 if __name__ == '__main__':
@@ -129,13 +143,13 @@ if __name__ == '__main__':
 
         while True:
             print("""
-                    This is a Spotify API service.
-                    It works in 2 modes:
-                    1. Loading playlist links from file, and check for email in their description
-                    2. Looking for playlists by search q (<1000 playlists per q)
-                    Enter 1 or 2, to start working in selected mode
-                    If You want to exit type 'q'
-                    """
+            This is a Spotify API service.
+            It works in 2 modes:
+            1. Loading playlist links from file, and check for email in their description
+            2. Looking for playlists by search q (<1000 playlists per q)
+            Enter 1 or 2, to start working in selected mode
+            If You want to exit type 'q'
+            """
                   )
 
             command = input("Enter command: ")
@@ -157,6 +171,7 @@ if __name__ == '__main__':
         clear()
         print("\nShutting down")
         sleep(1)
-    # except Exception as e:
-    #     print("Unexpected error:", e)
-
+    except Exception as e:
+        print("Unexpected error:", e)
+        sleep(5)
+        input("Press enter to exit")

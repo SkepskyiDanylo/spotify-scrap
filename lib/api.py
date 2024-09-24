@@ -79,7 +79,8 @@ def search_for_playlist(token_manager: TokenManager,
     return None
 
 
-def get_playlist_data(token_manager: TokenManager, playlist_id: str) -> dict[str, str | list] | None:
+def get_playlist_data(token_manager: TokenManager,
+                      playlist_id: str) -> dict[str, str | list] | None:
     url = "https://api.spotify.com/v1/playlists/" + str(playlist_id)
     headers = get_auth_header(token_manager.token)
     try:
@@ -91,12 +92,13 @@ def get_playlist_data(token_manager: TokenManager, playlist_id: str) -> dict[str
             return result
         else:
             return
-    except (httpx.RequestError, httpx.HTTPStatusError) as e:
+    except (httpx.RequestError, httpx.HTTPStatusError):
         logging.warning(f"Failed to get playlist data for {playlist_id}")
 
 
 def get_track_data(token_manager: TokenManager,
-                         playlist_link: str, top_count: int = 5) -> list[tuple]:
+                   playlist_link: str,
+                   top_count: int = 5) -> list[tuple]:
     result = []
     start_link = "https://api.spotify.com/v1/playlists/" + playlist_link[34:56]
 

@@ -134,7 +134,6 @@ class FileManager:
             print("File not found")
             return []
 
-
     @property
     def from_xlsx(self) -> list[str]:
         sheet_name = input("Enter sheet name: ")
