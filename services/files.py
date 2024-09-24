@@ -118,7 +118,7 @@ def from_csv(file_name: str) -> list[str] | None:
         return
 
 
-def from_xslx(file_name: str) -> list[str] | None:
+def from_xlsx(file_name: str) -> list[str] | None:
     sheet_name = input("Enter sheet name: ")
     column_number = int(input("Enter column number: "))
     used_ids = get_used_data()
@@ -161,25 +161,8 @@ def load_links(file_name: str) -> list[str] | None:
     elif file_name.endswith(".csv"):
         result = from_csv(file_name)
     elif file_name.endswith(".xlsx"):
-        result = from_xslx(file_name)
+        result = from_xlsx(file_name)
     else:
         print("File type not supported")
         result = None
     return result
-
-
-# def save_log(action: str, log_type: str, file_name: str = "logs.json") -> None:
-#     print(action)
-#     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-#     logs = []
-#     with open(file_name, "r", encoding="utf-8") as file_in:
-#         try:
-#             logs = json.load(file_in)
-#         except json.decoder.JSONDecodeError:
-#             logs.append({
-#             "timestamp": now,
-#             "type": "no_logs",
-#             "action": "file logs.json is empty, creating new one"})
-#         with open(file_name, "w", encoding="utf-8") as file_out:
-#             logs.append({"timestamp": now, "type": log_type, "action": action})
-#             json.dump(logs, file_out, ensure_ascii=False, indent=4)

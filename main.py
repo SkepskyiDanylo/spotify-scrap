@@ -170,7 +170,10 @@ if __name__ == '__main__':
                 load_links_mode(client_id, client_secret)
             elif command == '2':
                 clear()
+                start = time.time()
                 search_mode(client_id, client_secret)
+                end = time.time()
+                print(end - start)
             elif command == '3':
                 clear()
                 print("Manually getting top tracks")

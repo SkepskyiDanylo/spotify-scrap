@@ -3,8 +3,8 @@ import sqlite3
 
 class SpotifyDatabase:
     def __init__(self):
-        self._connection = sqlite3.connect("spotify_emails.sqlite")
-        self._table_name = "data"
+        self._connection = sqlite3.connect("spotify_db.sqlite")
+        self._table_name = "playlists"
 
     def create(self, name: str, email: str, link: str, song_type: str) -> str:
         self._connection.execute(
@@ -23,8 +23,8 @@ class SpotifyDatabase:
 
 class TrackDatabase:
     def __init__(self):
-        self._connection = sqlite3.connect("spotify_emails.sqlite")
-        self._table_name = "top_tracks_by_playlist"
+        self._connection = sqlite3.connect("spotify_db.sqlite")
+        self._table_name = "top_tracks"
 
     def create(self, playlist_id: str,
                name: str, artist: str,
